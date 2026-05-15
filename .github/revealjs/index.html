@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Workshop IA — Agents & Skills GitHub Copilot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.css">
+  <style>
+    :root { --r-main-color:#f5f5f5; --r-heading-color:#ffffff; --r-link-color:#8b5cf6; }
+    .accent { color:#22c55e; }
+    .muted { color:#a3a3a3; font-size:0.75em; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; }
+    .card { border:1px solid #333; border-radius:18px; padding:24px; background:#111827; }
+    code { color:#22c55e; }
+  </style>
+</head>
+<body>
+<div class="reveal"><div class="slides">
+<section>
+  <h1>IA, agents & skills</h1>
+  <p class="accent">Passer du prompt artisanal à la squad industrialisée</p>
+  <p class="muted">Workshop architectes seniors — GitHub Copilot</p>
+</section>
+<section>
+  <h2>Accroche</h2>
+  <p>“L’IA va tout changer.”</p>
+  <p class="muted">Vous avez déjà entendu ça avec le cloud, le microservice, le DevOps...</p>
+  <p class="accent">La vraie question : où change-t-elle notre rôle d’architecte ?</p>
+</section>
+<section>
+  <h2>Prompt / Agent / Skill</h2>
+  <div class="grid">
+    <div class="card"><h3>Prompt</h3><p>Une demande ponctuelle.</p></div>
+    <div class="card"><h3>Agent</h3><p>Un rôle spécialisé avec règles et périmètre.</p></div>
+    <div class="card"><h3>Skill</h3><p>Une capacité atomique réutilisable.</p></div>
+    <div class="card"><h3>Squad</h3><p>Une orchestration complète du delivery.</p></div>
+  </div>
+</section>
+<section>
+  <h2>Squad cible</h2>
+  <pre><code>Orchestrateur
+├── Product Owner
+├── Architecture DDD
+├── Domain Model
+├── EF Core Data
+├── gRPC API
+├── Blazor UI
+├── QA / Security / Perf
+└── RetroDoc C4</code></pre>
+</section>
+<section>
+  <h2>Application fil rouge</h2>
+  <p>Réservation de livres</p>
+  <pre><code>TLivre
+TPersonne
+TAdresse
+TReservation</code></pre>
+</section>
+<section>
+  <h2>Message final</h2>
+  <p>L'IA ne remplace pas l'architecte.</p>
+  <p class="accent">Elle amplifie celui qui sait cadrer, découper, valider et décider.</p>
+</section>
+</div></div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+<script>Reveal.initialize({ hash:true, slideNumber:true });</script>
+</body>
+</html>

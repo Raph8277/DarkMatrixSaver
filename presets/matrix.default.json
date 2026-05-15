@@ -1,0 +1,66 @@
+{
+  "background": {
+    "mode": "Single",
+    "images": [
+      "../Assets/backgrounds/default.png"
+    ],
+    "changeIntervalSeconds": 25,
+    "opacity": 0.95,
+    "stretch": "Uniform"
+  },
+  "matrix": {
+    "glyphColor": "#00FF66",
+    "headColor": "#EAFFF0",
+    "shadowColor": "#001E0D",
+    "fontSize": 22,
+    "speed": 1.45,
+    "density": 0.9,
+    "SpawnMultiplier": 4,
+    "fadeOpacity": 0.07,
+    "fontFamily": "Consolas",
+    "alphabet": "Demon"
+  },
+  "effects": {
+    "glow": true,
+    "glowIntensity": 1.0,
+    "scanLines": true,
+    "scanLineOpacity": 0.20,
+    "crt": true,
+    "vignette": true,
+    "smoke": true,
+    "particles": true
+  },
+  "depth": {
+    "layers": [
+      {
+        "depth": 0.12,
+        "opacity": 0.58,
+        "speedMultiplier": 0.78,
+        "densityMultiplier": 1.10
+      },
+      {
+        "depth": 0.34,
+        "opacity": 0.74,
+        "speedMultiplier": 1.02,
+        "densityMultiplier": 1.28
+      },
+      {
+        "depth": 0.66,
+        "opacity": 0.84,
+        "speedMultiplier": 1.12,
+        "densityMultiplier": 0.96
+      },
+      {
+        "depth": 0.86,
+        "opacity": 0.96,
+        "speedMultiplier": 1.28,
+        "densityMultiplier": 1.04
+      }
+    ]
+  },
+  "screens": {
+    "multiScreen": true,
+    "exitOnMouseMove": true,
+    "hideCursor": true
+  }
+}

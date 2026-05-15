@@ -1,0 +1,33 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.0.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MatrixScreensaver.Engine", "src\MatrixScreensaver.Engine\MatrixScreensaver.Engine.csproj", "{D94E7E36-7705-4F1C-B92B-A437DD53B934}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MatrixScreensaver.Wpf", "src\MatrixScreensaver.Wpf\MatrixScreensaver.Wpf.csproj", "{9EBA83C5-5304-46C8-8B5D-68F928727445}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MatrixScreensaver.ConfigEditor", "src\MatrixScreensaver.ConfigEditor\MatrixScreensaver.ConfigEditor.csproj", "{519B54DF-F834-4DFD-9E77-CDA15DBB42F6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D94E7E36-7705-4F1C-B92B-A437DD53B934}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D94E7E36-7705-4F1C-B92B-A437DD53B934}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D94E7E36-7705-4F1C-B92B-A437DD53B934}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D94E7E36-7705-4F1C-B92B-A437DD53B934}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9EBA83C5-5304-46C8-8B5D-68F928727445}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9EBA83C5-5304-46C8-8B5D-68F928727445}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9EBA83C5-5304-46C8-8B5D-68F928727445}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9EBA83C5-5304-46C8-8B5D-68F928727445}.Release|Any CPU.Build.0 = Release|Any CPU
+		{519B54DF-F834-4DFD-9E77-CDA15DBB42F6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{519B54DF-F834-4DFD-9E77-CDA15DBB42F6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{519B54DF-F834-4DFD-9E77-CDA15DBB42F6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{519B54DF-F834-4DFD-9E77-CDA15DBB42F6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

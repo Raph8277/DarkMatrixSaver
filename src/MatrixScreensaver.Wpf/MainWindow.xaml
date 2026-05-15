@@ -1,0 +1,73 @@
+<Window x:Class="MatrixScreensaver.Wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:MatrixScreensaver.Wpf"
+        Background="Black"
+        KeyDown="Window_KeyDown"
+        MouseMove="Window_MouseMove">
+
+    <Grid ClipToBounds="True">
+        <Grid x:Name="BackLayersContainer" Panel.ZIndex="0" />
+
+        <Border x:Name="BackgroundStage" Panel.ZIndex="2"
+                
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Width="Auto"
+                Height="Auto"
+                Margin="120"
+                Background="#06000000"
+                BorderBrush="#22000000"
+                BorderThickness="1"
+                CornerRadius="6"
+                IsHitTestVisible="False">
+            <Image x:Name="BackgroundImage" Stretch="Uniform" Opacity="1" />
+        </Border>
+
+        <Rectangle x:Name="CrtOverlay" Panel.ZIndex="4" IsHitTestVisible="False" Opacity="0.00">
+            <Rectangle.Fill>
+                <DrawingBrush TileMode="Tile" Viewport="0,0,2,2" ViewportUnits="Absolute">
+                    <DrawingBrush.Drawing>
+                        <GeometryDrawing Brush="#00000000">
+                            <GeometryDrawing.Geometry>
+                                <RectangleGeometry Rect="0,0,1,1" />
+                            </GeometryDrawing.Geometry>
+                        </GeometryDrawing>
+                    </DrawingBrush.Drawing>
+                </DrawingBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+
+        <Grid x:Name="FrontLayersContainer" Panel.ZIndex="3" />
+
+        <Rectangle x:Name="ScanLines" Panel.ZIndex="5" IsHitTestVisible="False" Opacity="0.18">
+            <Rectangle.Fill>
+                <DrawingBrush TileMode="Tile" Viewport="0,0,1,4" ViewportUnits="Absolute">
+                    <DrawingBrush.Drawing>
+                        <GeometryDrawing Brush="#66000000">
+                            <GeometryDrawing.Geometry>
+                                <RectangleGeometry Rect="0,0,1,1" />
+                            </GeometryDrawing.Geometry>
+                        </GeometryDrawing>
+                    </DrawingBrush.Drawing>
+                </DrawingBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+
+        <Rectangle x:Name="Vignette" Panel.ZIndex="6" IsHitTestVisible="False">
+            <Rectangle.Fill>
+                <RadialGradientBrush RadiusX="0.78" RadiusY="0.78">
+                    <GradientStop Color="#00000000" Offset="0.50" />
+                    <GradientStop Color="#CC000000" Offset="1.0" />
+                </RadialGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+    </Grid>
+</Window>
+
+
+
+
+
+
+
