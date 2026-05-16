@@ -147,7 +147,7 @@ public sealed class MatrixRainControl : FrameworkElement
         }
         else
         {
-            density *= _depth == MatrixDepth.Far ? 0.92 : 0.72;
+            density *= _depth == MatrixDepth.Far ? 0.82 : 0.62;
         }
 
         var speed = matrix.Speed;
@@ -483,6 +483,7 @@ public sealed class MatrixRainControl : FrameworkElement
         return (34, 1, false);
     }
 }
+
 
 
 

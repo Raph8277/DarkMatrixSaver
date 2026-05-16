@@ -172,11 +172,11 @@ public partial class MainWindow : Window
 
         var backOpacityBoost = isWideLandscape ? 1.40 : (isLandscape ? 1.28 : 1.12);
         var backSpeedBoost = isWideLandscape ? 1.52 : (isLandscape ? 1.36 : 1.14);
-        var backDensityBoost = isWideLandscape ? 1.75 : (isLandscape ? 1.50 : 1.48);
+        var backDensityBoost = isWideLandscape ? 1.44 : (isLandscape ? 1.34 : 1.48);
 
-        var frontOpacityBoost = isWideLandscape ? 0.72 : (isLandscape ? 0.78 : 0.88);
-        var frontSpeedBoost = isWideLandscape ? 0.92 : (isLandscape ? 0.96 : 1.00);
-        var frontDensityBoost = isWideLandscape ? 0.45 : (isLandscape ? 0.52 : 0.86);
+        var frontOpacityBoost = isWideLandscape ? 0.86 : (isLandscape ? 0.86 : 0.88);
+        var frontSpeedBoost = isWideLandscape ? 1.00 : (isLandscape ? 1.00 : 1.00);
+        var frontDensityBoost = isWideLandscape ? 0.68 : (isLandscape ? 0.74 : 0.86);
 
         var effectiveOpacity = isBackLayer
             ? Math.Clamp(layerConfig.Opacity * backOpacityBoost, 0.62, 1.00)
@@ -353,6 +353,9 @@ public partial class MainWindow : Window
             System.Windows.Application.Current.Shutdown();
     }
 }
+
+
+
 
 
 
