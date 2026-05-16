@@ -36,6 +36,7 @@ public partial class MainWindow : Window
         BackgroundImage.Stretch = Stretch.Uniform;
         BackgroundStage.Opacity = Math.Clamp(options.Background.Opacity + 0.05, 0.0, 1.0);
         BackgroundStage.RenderTransform = Transform.Identity;
+        ConfigureImageTintOverlay(options);
 
         UpdateBackgroundPlaneLayout();
         SizeChanged += (_, _) => UpdateBackgroundPlaneLayout();
@@ -54,6 +55,30 @@ public partial class MainWindow : Window
         };
     }
 
+    private void ConfigureImageTintOverlay(MatrixScreensaverOptions options)
+    {
+        var baseColor = ParseTintColor(options.Matrix.GlyphColor, System.Windows.Media.Color.FromRgb(0, 255, 102));
+        var tintStrength = Math.Clamp(0.015 + options.Background.Opacity * 0.015, 0.015, 0.035);
+        var alpha = (byte)Math.Clamp((int)Math.Round(255.0 * tintStrength), 0, 255);
+        var tintColor = System.Windows.Media.Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
+
+        ImageTintOverlay.Fill = new SolidColorBrush(tintColor);
+        ImageTintOverlay.Opacity = 1.0;
+        ImageTintOverlay.Visibility = Visibility.Visible;
+    }
+
+    private static System.Windows.Media.Color ParseTintColor(string input, System.Windows.Media.Color fallback)
+    {
+        try
+        {
+            var converted = System.Windows.Media.ColorConverter.ConvertFromString(input);
+            return converted is System.Windows.Media.Color c ? c : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
     private void InitializeDepthLayers()
     {
         _rainLayers.Clear();
@@ -147,11 +172,11 @@ public partial class MainWindow : Window
 
         var backOpacityBoost = isWideLandscape ? 1.40 : (isLandscape ? 1.28 : 1.12);
         var backSpeedBoost = isWideLandscape ? 1.52 : (isLandscape ? 1.36 : 1.14);
-        var backDensityBoost = isWideLandscape ? 1.75 : (isLandscape ? 1.50 : 1.24);
+        var backDensityBoost = isWideLandscape ? 1.75 : (isLandscape ? 1.50 : 1.48);
 
         var frontOpacityBoost = isWideLandscape ? 0.72 : (isLandscape ? 0.78 : 0.88);
         var frontSpeedBoost = isWideLandscape ? 0.92 : (isLandscape ? 0.96 : 1.00);
-        var frontDensityBoost = isWideLandscape ? 0.45 : (isLandscape ? 0.52 : 0.75);
+        var frontDensityBoost = isWideLandscape ? 0.45 : (isLandscape ? 0.52 : 0.68);
 
         var effectiveOpacity = isBackLayer
             ? Math.Clamp(layerConfig.Opacity * backOpacityBoost, 0.62, 1.00)
@@ -217,6 +242,12 @@ public partial class MainWindow : Window
         bitmap.Freeze();
 
         BackgroundImage.Source = bitmap;
+        ImageTintOverlay.OpacityMask = new ImageBrush(bitmap)
+        {
+            Stretch = Stretch.Uniform,
+            AlignmentX = AlignmentX.Center,
+            AlignmentY = AlignmentY.Center
+        };
         UpdateBackgroundPlaneLayout(bitmap);
     }
 
@@ -322,6 +353,11 @@ public partial class MainWindow : Window
             System.Windows.Application.Current.Shutdown();
     }
 }
+
+
+
+
+
 
 
 
