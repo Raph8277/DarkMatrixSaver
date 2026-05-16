@@ -176,7 +176,7 @@ public partial class MainWindow : Window
 
         var frontOpacityBoost = isWideLandscape ? 0.72 : (isLandscape ? 0.78 : 0.88);
         var frontSpeedBoost = isWideLandscape ? 0.92 : (isLandscape ? 0.96 : 1.00);
-        var frontDensityBoost = isWideLandscape ? 0.45 : (isLandscape ? 0.52 : 0.68);
+        var frontDensityBoost = isWideLandscape ? 0.45 : (isLandscape ? 0.52 : 0.86);
 
         var effectiveOpacity = isBackLayer
             ? Math.Clamp(layerConfig.Opacity * backOpacityBoost, 0.62, 1.00)
@@ -353,6 +353,7 @@ public partial class MainWindow : Window
             System.Windows.Application.Current.Shutdown();
     }
 }
+
 
 
 

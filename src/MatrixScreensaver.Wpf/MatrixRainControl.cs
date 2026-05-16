@@ -1,6 +1,488 @@
-using System;using System.Collections.Generic;using System.Diagnostics;using System.Runtime.InteropServices;using System.Windows;using System.Windows.Media;using System.Windows.Media.Imaging;using MatrixScreensaver.Engine.Configuration;using MatrixScreensaver.Engine.Matrix;namespace MatrixScreensaver.Wpf;public enum MatrixDepth{    Far,    Near}public sealed class MatrixRainControl : FrameworkElement{    private readonly MatrixRainEngine _engine = new();    private MatrixDepth _depth = MatrixDepth.Near;    private readonly Stopwatch _clock = Stopwatch.StartNew();    private MatrixScreensaverOptions _options = new();    private TimeSpan _last;    private bool _secondaryRenderToggle;    private TimeSpan _secondaryUpdateAccumulator;    private static readonly TimeSpan SecondaryUpdateInterval = TimeSpan.FromMilliseconds(66);    private WriteableBitmap? _framebuffer;    private int[] _pixels = Array.Empty<int>();    private int _bufferWidth;    private int _bufferHeight;    private double _renderScale = 1.0;    private byte _glyphR;    private byte _glyphG;    private byte _glyphB;    private byte _headR;    private byte _headG;    private byte _headB;    private readonly Dictionary<long, byte[]> _glyphMaskCache = new();    private bool IsSecondaryPerformanceProfile => !_options.Effects.Glow && !_options.Effects.ScanLines && !_options.Effects.Vignette;    public void Configure(MatrixScreensaverOptions options)        => Configure(options, MatrixDepth.Near);    public void Configure(MatrixScreensaverOptions options, MatrixDepth depth)    {        _options = options;        _depth = depth;        _last = TimeSpan.Zero;        _secondaryRenderToggle = false;        _secondaryUpdateAccumulator = TimeSpan.Zero;        var glyphColor = ParseColor(options.Matrix.GlyphColor, System.Windows.Media.Color.FromRgb(0, 255, 102));        var headColor = ParseColor(options.Matrix.HeadColor, System.Windows.Media.Color.FromRgb(216, 255, 232));        _glyphR = glyphColor.R;        _glyphG = glyphColor.G;        _glyphB = glyphColor.B;        _headR = headColor.R;        _headG = headColor.G;        _headB = headColor.B;        RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.NearestNeighbor);        SnapsToDevicePixels = true;        UseLayoutRounding = true;        _framebuffer = null;        _pixels = Array.Empty<int>();        _bufferWidth = 0;        _bufferHeight = 0;        _renderScale = 1.0;        _glyphMaskCache.Clear();        CompositionTarget.Rendering -= OnRendering;        CompositionTarget.Rendering += OnRendering;    }    private static System.Windows.Media.Color ParseColor(string input, System.Windows.Media.Color fallback)    {        try        {            var converted = System.Windows.Media.ColorConverter.ConvertFromString(input);            return converted is System.Windows.Media.Color c ? c : fallback;        }        catch        {            return fallback;        }    }    private void OnRendering(object? sender, EventArgs e)    {        var now = _clock.Elapsed;        if (_last == TimeSpan.Zero)        {            _last = now;            return;        }        var delta = now - _last;        _last = now;        if (IsSecondaryPerformanceProfile)        {            _secondaryUpdateAccumulator += delta;            _secondaryRenderToggle = !_secondaryRenderToggle;            if (_secondaryRenderToggle)                return;            if (_secondaryUpdateAccumulator < SecondaryUpdateInterval)                return;            delta = _secondaryUpdateAccumulator;            _secondaryUpdateAccumulator = TimeSpan.Zero;        }        var matrixOptions = GetEffectiveMatrixOptions((int)ActualWidth, (int)ActualHeight);        _engine.EnsureLayout((int)ActualWidth, (int)ActualHeight, matrixOptions);        _engine.Update(Math.Min(delta.TotalSeconds, 0.1), (int)ActualHeight, matrixOptions);        EnsureFramebuffer();        RenderRasterFrame();        InvalidateVisual();    }    protected override void OnRender(DrawingContext dc)    {        base.OnRender(dc);        if (_framebuffer is null || ActualWidth <= 0 || ActualHeight <= 0)            return;        dc.DrawImage(_framebuffer, new Rect(0, 0, ActualWidth, ActualHeight));    }    private MatrixOptions GetEffectiveMatrixOptions(int width, int height)    {        var matrix = _options.Matrix;        var density = matrix.Density;        if (height > width)        {            density *= _depth == MatrixDepth.Far ? 0.34 : 0.58;        }        else        {            density *= _depth == MatrixDepth.Far ? 0.92 : 0.72;        }        var speed = matrix.Speed;        if (width >= height)        {            speed *= _depth == MatrixDepth.Far ? 1.28 : 0.96;        }        return new MatrixOptions        {            GlyphColor = matrix.GlyphColor,            HeadColor = matrix.HeadColor,            ShadowColor = matrix.ShadowColor,            FontSize = matrix.FontSize,            Speed = speed,            Density = density,            SpawnMultiplier = matrix.SpawnMultiplier,            FadeOpacity = matrix.FadeOpacity,            FontFamily = matrix.FontFamily,            Alphabet = matrix.Alphabet        };    }    private void EnsureFramebuffer()    {        var width = Math.Max(1, (int)ActualWidth);        var height = Math.Max(1, (int)ActualHeight);        var maxPixels = IsSecondaryPerformanceProfile ? 350_000.0 : 1_200_000.0;        var area = Math.Max(1.0, width * (double)height);        var scale = Math.Min(1.0, Math.Sqrt(maxPixels / area));        scale *= _depth switch        {            MatrixDepth.Far => 0.56,            MatrixDepth.Near => 1.48,            _ => 1.0        };        scale = Math.Clamp(scale, 0.2, 1.0);        var targetWidth = Math.Max(1, (int)Math.Round(width * scale));        var targetHeight = Math.Max(1, (int)Math.Round(height * scale));        if (_framebuffer is not null && targetWidth == _bufferWidth && targetHeight == _bufferHeight)        {            _renderScale = scale;            return;        }        _bufferWidth = targetWidth;        _bufferHeight = targetHeight;        _renderScale = scale;        _framebuffer = new WriteableBitmap(_bufferWidth, _bufferHeight, 96, 96, PixelFormats.Bgra32, null);        _pixels = new int[_bufferWidth * _bufferHeight];    }    private void RenderRasterFrame()    {        if (_framebuffer is null || _pixels.Length == 0)            return;        var depthAlphaMultiplier = _depth == MatrixDepth.Far ? 0.62 : 0.04;        var bgAlpha = (byte)Math.Clamp((int)(Math.Clamp(_options.Matrix.FadeOpacity, 0.0, 1.0) * 255.0 * depthAlphaMultiplier), 0, 255);        Array.Fill(_pixels, unchecked((int)((uint)bgAlpha << 24)));        var (maxTailLength, tailStride, disableGlow) = GetRenderProfile();        var glyphWidth = Math.Max(2, (int)Math.Round(_options.Matrix.FontSize * _renderScale * 0.45));        var glyphHeight = Math.Max(3, (int)Math.Round(_options.Matrix.FontSize * _renderScale * 0.82));        if (_depth == MatrixDepth.Far)        {            glyphWidth = Math.Max(2, (int)Math.Round(glyphWidth * 0.82));            glyphHeight = Math.Max(3, (int)Math.Round(glyphHeight * 0.82));        }        else        {            glyphWidth = Math.Max(2, (int)Math.Round(glyphWidth * 1.22));            glyphHeight = Math.Max(3, (int)Math.Round(glyphHeight * 1.22));        }         var characterSpacing = _depth == MatrixDepth.Far ? 1.12 : 1.18;         foreach (var column in _engine.Columns)        {            foreach (var (glyph, index) in column.Glyphs())            {                if (index > maxTailLength)                    break;                if (index > 0 && tailStride > 1 && index % tailStride != 0)                    continue;                var y = column.Y - index * _options.Matrix.FontSize * characterSpacing;                if (y < -_options.Matrix.FontSize || y > ActualHeight + _options.Matrix.FontSize)                    continue;                                                                                                                    var sx = (int)(column.X * _renderScale);                var sy = (int)(y * _renderScale);                var depthOpacityMultiplier = _depth == MatrixDepth.Far ? 0.82 : 1.32;                var opacity = (index == 0 ? 1.0 : Math.Max(0.08, 1.0 - index / (double)Math.Max(1, maxTailLength))) * depthOpacityMultiplier;                var alpha = (byte)Math.Clamp((int)(opacity * 255.0), 0, 255);                if (index == 0)                {                    DrawGlyphMaskAlpha(glyph, sx, sy, glyphWidth, glyphHeight, _headR, _headG, _headB, alpha);                    if (_options.Effects.Glow && !disableGlow && _depth != MatrixDepth.Far)                    {                        var glowAlpha = (byte)Math.Clamp((int)(Math.Clamp(_options.Effects.GlowIntensity, 0, 1) * 80), 0, 255);                        DrawRectAlpha(sx - 1, sy - 1, glyphWidth + 2, glyphHeight + 2, _headR, _headG, _headB, glowAlpha);                    }                }                else                {                    DrawGlyphMaskAlpha(glyph, sx, sy, glyphWidth, glyphHeight, _glyphR, _glyphG, _glyphB, alpha);                }            }        }        _framebuffer.Lock();        Marshal.Copy(_pixels, 0, _framebuffer.BackBuffer, _pixels.Length);        _framebuffer.AddDirtyRect(new Int32Rect(0, 0, _bufferWidth, _bufferHeight));        _framebuffer.Unlock();    }    private void DrawGlyphMaskAlpha(char glyph, int x, int y, int w, int h, byte r, byte g, byte b, byte a)    {        if (w <= 0 || h <= 0 || a == 0)            return;        var mask = GetGlyphMask(glyph, w, h);        var x0 = Math.Max(0, x);        var y0 = Math.Max(0, y);        var x1 = Math.Min(_bufferWidth, x + w);        var y1 = Math.Min(_bufferHeight, y + h);        if (x0 >= x1 || y0 >= y1)            return;        for (var yy = y0; yy < y1; yy++)        {            var my = yy - y;            var row = yy * _bufferWidth;            var maskRow = my * w;            for (var xx = x0; xx < x1; xx++)            {                var mx = xx - x;                var shape = mask[maskRow + mx];                if (shape == 0)                    continue;                var effectiveAlpha = (byte)((a * shape) / 255);                if (effectiveAlpha == 0)                    continue;                var idx = row + xx;                var dst = (uint)_pixels[idx];                var db = (byte)(dst & 0xFF);                var dg = (byte)((dst >> 8) & 0xFF);                var dr = (byte)((dst >> 16) & 0xFF);                var inv = 255 - effectiveAlpha;                var nb = (byte)((b * effectiveAlpha + db * inv) / 255);                var ng = (byte)((g * effectiveAlpha + dg * inv) / 255);                var nr = (byte)((r * effectiveAlpha + dr * inv) / 255);                _pixels[idx] = unchecked((int)(0xFF000000u | (uint)(nr << 16) | (uint)(ng << 8) | nb));            }        }    }    private byte[] GetGlyphMask(char glyph, int w, int h)    {        var key = ((long)glyph << 32) | ((long)(ushort)w << 16) | (ushort)h;        if (_glyphMaskCache.TryGetValue(key, out var mask))            return mask;        mask = BuildGlyphMask(glyph, w, h);        _glyphMaskCache[key] = mask;        return mask;    }    private static byte[] BuildGlyphMask(char glyph, int w, int h)    {        const int srcW = 5;        const int srcH = 7;        var src = new bool[srcW * srcH];        for (var yy = 0; yy < srcH; yy++)            src[yy * srcW + 2] = true;        var seed = glyph * 1103515245 + 12345;        for (var i = 0; i < src.Length; i++)        {            seed = unchecked(seed * 1664525 + 1013904223);            var bit = (seed >> 28) & 1;            if (bit == 1)                src[i] = true;        }        src[0 * srcW + (glyph % srcW)] = true;        src[(srcH - 1) * srcW + ((glyph / 3) % srcW)] = true;        var dst = new byte[w * h];        for (var y = 0; y < h; y++)        {            var sy = Math.Clamp((int)(y * (srcH / (double)h)), 0, srcH - 1);            var row = y * w;            for (var x = 0; x < w; x++)            {                var sx = Math.Clamp((int)(x * (srcW / (double)w)), 0, srcW - 1);                dst[row + x] = src[sy * srcW + sx] ? (byte)255 : (byte)0;            }        }        return dst;    }    private void DrawRectAlpha(int x, int y, int w, int h, byte r, byte g, byte b, byte a)    {        if (w <= 0 || h <= 0 || a == 0)            return;        var x0 = Math.Max(0, x);        var y0 = Math.Max(0, y);        var x1 = Math.Min(_bufferWidth, x + w);        var y1 = Math.Min(_bufferHeight, y + h);        if (x0 >= x1 || y0 >= y1)            return;        for (var yy = y0; yy < y1; yy++)        {            var row = yy * _bufferWidth;            for (var xx = x0; xx < x1; xx++)            {                var idx = row + xx;                var dst = (uint)_pixels[idx];                var db = (byte)(dst & 0xFF);                var dg = (byte)((dst >> 8) & 0xFF);                var dr = (byte)((dst >> 16) & 0xFF);                var inv = 255 - a;                var nb = (byte)((b * a + db * inv) / 255);                var ng = (byte)((g * a + dg * inv) / 255);                var nr = (byte)((r * a + dr * inv) / 255);                _pixels[idx] = unchecked((int)(0xFF000000u | (uint)(nr << 16) | (uint)(ng << 8) | nb));            }        }    }    private (int maxTailLength, int tailStride, bool disableGlow) GetRenderProfile()    {        var pixelArea = ActualWidth * ActualHeight;        var columnCount = _engine.Columns.Count;        if (pixelArea >= 7_000_000 || columnCount >= 180)            return (22, 2, IsSecondaryPerformanceProfile);        if (pixelArea >= 3_500_000 || columnCount >= 120)            return (26, 1, IsSecondaryPerformanceProfile);        if (pixelArea >= 2_200_000 || columnCount >= 90)            return (34, 1, false);        return (34, 1, false);    }}
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using MatrixScreensaver.Engine.Configuration;
+using MatrixScreensaver.Engine.Matrix;
 
+namespace MatrixScreensaver.Wpf;
 
+public enum MatrixDepth
+{
+    Far,
+    Near
+}
+
+public sealed class MatrixRainControl : FrameworkElement
+{
+    private readonly MatrixRainEngine _engine = new();
+    private MatrixDepth _depth = MatrixDepth.Near;
+    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private MatrixScreensaverOptions _options = new();
+    private TimeSpan _last;
+    private bool _secondaryRenderToggle;
+    private TimeSpan _secondaryUpdateAccumulator;
+    private static readonly TimeSpan SecondaryUpdateInterval = TimeSpan.FromMilliseconds(66);
+    private WriteableBitmap? _framebuffer;
+    private int[] _pixels = Array.Empty<int>();
+    private int _bufferWidth;
+    private int _bufferHeight;
+    private double _renderScale = 1.0;
+    private byte _glyphR;
+    private byte _glyphG;
+    private byte _glyphB;
+    private byte _headR;
+    private byte _headG;
+    private byte _headB;
+    private byte _shadowR;
+    private byte _shadowG;
+    private byte _shadowB;
+    private readonly Dictionary<long, byte[]> _glyphMaskCache = new();
+    private bool IsSecondaryPerformanceProfile => !_options.Effects.Glow && !_options.Effects.ScanLines && !_options.Effects.Vignette;
+
+    public void Configure(MatrixScreensaverOptions options)
+        => Configure(options, MatrixDepth.Near);
+
+    public void Configure(MatrixScreensaverOptions options, MatrixDepth depth)
+    {
+        _options = options;
+        _depth = depth;
+        _last = TimeSpan.Zero;
+        _secondaryRenderToggle = false;
+        _secondaryUpdateAccumulator = TimeSpan.Zero;
+
+        var glyphColor = ParseColor(options.Matrix.GlyphColor, System.Windows.Media.Color.FromRgb(0, 255, 102));
+        var headColor = ParseColor(options.Matrix.HeadColor, System.Windows.Media.Color.FromRgb(216, 255, 232));
+        var shadowColor = ParseColor(options.Matrix.ShadowColor, System.Windows.Media.Color.FromRgb(0, 59, 27));
+
+        _glyphR = glyphColor.R;
+        _glyphG = glyphColor.G;
+        _glyphB = glyphColor.B;
+        _headR = headColor.R;
+        _headG = headColor.G;
+        _headB = headColor.B;
+        _shadowR = shadowColor.R;
+        _shadowG = shadowColor.G;
+        _shadowB = shadowColor.B;
+
+        RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.NearestNeighbor);
+        SnapsToDevicePixels = true;
+        UseLayoutRounding = true;
+        _framebuffer = null;
+        _pixels = Array.Empty<int>();
+        _bufferWidth = 0;
+        _bufferHeight = 0;
+        _renderScale = 1.0;
+        _glyphMaskCache.Clear();
+        CompositionTarget.Rendering -= OnRendering;
+        CompositionTarget.Rendering += OnRendering;
+    }
+
+    private static System.Windows.Media.Color ParseColor(string input, System.Windows.Media.Color fallback)
+    {
+        try
+        {
+            var converted = System.Windows.Media.ColorConverter.ConvertFromString(input);
+            return converted is System.Windows.Media.Color c ? c : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private void OnRendering(object? sender, EventArgs e)
+    {
+        var now = _clock.Elapsed;
+        if (_last == TimeSpan.Zero)
+        {
+            _last = now;
+            return;
+        }
+
+        var delta = now - _last;
+        _last = now;
+
+        if (IsSecondaryPerformanceProfile)
+        {
+            _secondaryUpdateAccumulator += delta;
+            _secondaryRenderToggle = !_secondaryRenderToggle;
+            if (_secondaryRenderToggle)
+                return;
+            if (_secondaryUpdateAccumulator < SecondaryUpdateInterval)
+                return;
+
+            delta = _secondaryUpdateAccumulator;
+            _secondaryUpdateAccumulator = TimeSpan.Zero;
+        }
+
+        var matrixOptions = GetEffectiveMatrixOptions((int)ActualWidth, (int)ActualHeight);
+        _engine.EnsureLayout((int)ActualWidth, (int)ActualHeight, matrixOptions);
+        _engine.Update(Math.Min(delta.TotalSeconds, 0.1), (int)ActualHeight, matrixOptions);
+        EnsureFramebuffer();
+        RenderRasterFrame();
+        InvalidateVisual();
+    }
+
+    protected override void OnRender(DrawingContext dc)
+    {
+        base.OnRender(dc);
+        if (_framebuffer is null || ActualWidth <= 0 || ActualHeight <= 0)
+            return;
+
+        dc.DrawImage(_framebuffer, new Rect(0, 0, ActualWidth, ActualHeight));
+    }
+
+    private MatrixOptions GetEffectiveMatrixOptions(int width, int height)
+    {
+        var matrix = _options.Matrix;
+        var density = matrix.Density;
+        if (height > width)
+        {
+            density *= _depth == MatrixDepth.Far ? 0.44 : 0.72;
+        }
+        else
+        {
+            density *= _depth == MatrixDepth.Far ? 0.92 : 0.72;
+        }
+
+        var speed = matrix.Speed;
+        if (width >= height)
+        {
+            speed *= _depth == MatrixDepth.Far ? 1.28 : 0.96;
+        }
+
+        return new MatrixOptions
+        {
+            GlyphColor = matrix.GlyphColor,
+            HeadColor = matrix.HeadColor,
+            ShadowColor = matrix.ShadowColor,
+            FontSize = matrix.FontSize,
+            Speed = speed,
+            Density = density,
+            SpawnMultiplier = matrix.SpawnMultiplier,
+            FadeOpacity = matrix.FadeOpacity,
+            FontFamily = matrix.FontFamily,
+            Alphabet = matrix.Alphabet
+        };
+    }
+
+    private void EnsureFramebuffer()
+    {
+        var width = Math.Max(1, (int)ActualWidth);
+        var height = Math.Max(1, (int)ActualHeight);
+        var maxPixels = IsSecondaryPerformanceProfile ? 350_000.0 : 1_200_000.0;
+        var area = Math.Max(1.0, width * (double)height);
+        var scale = Math.Min(1.0, Math.Sqrt(maxPixels / area));
+        scale *= _depth switch
+        {
+            MatrixDepth.Far => 0.56,
+            MatrixDepth.Near => 1.48,
+            _ => 1.0
+        };
+        scale = Math.Clamp(scale, 0.2, 1.0);
+        var targetWidth = Math.Max(1, (int)Math.Round(width * scale));
+        var targetHeight = Math.Max(1, (int)Math.Round(height * scale));
+
+        if (_framebuffer is not null && targetWidth == _bufferWidth && targetHeight == _bufferHeight)
+        {
+            _renderScale = scale;
+            return;
+        }
+
+        _bufferWidth = targetWidth;
+        _bufferHeight = targetHeight;
+        _renderScale = scale;
+        _framebuffer = new WriteableBitmap(_bufferWidth, _bufferHeight, 96, 96, PixelFormats.Bgra32, null);
+        _pixels = new int[_bufferWidth * _bufferHeight];
+    }
+
+    private void RenderRasterFrame()
+    {
+        if (_framebuffer is null || _pixels.Length == 0)
+            return;
+
+        var depthAlphaMultiplier = _depth == MatrixDepth.Far ? 0.62 : 0.04;
+        var bgAlpha = (byte)Math.Clamp((int)(Math.Clamp(_options.Matrix.FadeOpacity, 0.0, 1.0) * 255.0 * depthAlphaMultiplier), 0, 255);
+        Array.Fill(_pixels, unchecked((int)((uint)bgAlpha << 24)));
+
+        var (maxTailLength, tailStride, disableGlow) = GetRenderProfile();
+        var glyphWidth = Math.Max(2, (int)Math.Round(_options.Matrix.FontSize * _renderScale * 0.45));
+        var glyphHeight = Math.Max(3, (int)Math.Round(_options.Matrix.FontSize * _renderScale * 0.82));
+
+        if (_depth == MatrixDepth.Far)
+        {
+            glyphWidth = Math.Max(2, (int)Math.Round(glyphWidth * 0.82));
+            glyphHeight = Math.Max(3, (int)Math.Round(glyphHeight * 0.82));
+        }
+        else
+        {
+            glyphWidth = Math.Max(2, (int)Math.Round(glyphWidth * 1.22));
+            glyphHeight = Math.Max(3, (int)Math.Round(glyphHeight * 1.22));
+        }
+
+        var characterSpacing = _depth == MatrixDepth.Far ? 1.12 : 1.18;
+
+        foreach (var column in _engine.Columns)
+        {
+            foreach (var (glyph, index) in column.Glyphs())
+            {
+                if (index > maxTailLength)
+                    break;
+                if (index > 0 && tailStride > 1 && index % tailStride != 0)
+                    continue;
+
+                var y = column.Y - index * _options.Matrix.FontSize * characterSpacing;
+                if (y < -_options.Matrix.FontSize || y > ActualHeight + _options.Matrix.FontSize)
+                    continue;
+
+                var sx = (int)(column.X * _renderScale);
+                var sy = (int)(y * _renderScale);
+                var depthOpacityMultiplier = _depth == MatrixDepth.Far ? 0.82 : 1.32;
+                var opacity = (index == 0 ? 1.0 : Math.Max(0.08, 1.0 - index / (double)Math.Max(1, maxTailLength))) * depthOpacityMultiplier;
+                var alpha = (byte)Math.Clamp((int)(opacity * 255.0), 0, 255);
+
+                if (index == 0)
+                {
+                    DrawGlyphMaskAlpha(glyph, sx, sy, glyphWidth, glyphHeight, _headR, _headG, _headB, alpha, withShadow: true, shadowAlpha: (byte)(alpha / 3));
+                    if (_options.Effects.Glow && !disableGlow && _depth != MatrixDepth.Far)
+                    {
+                        var glowAlpha = (byte)Math.Clamp((int)(Math.Clamp(_options.Effects.GlowIntensity, 0, 1) * 80), 0, 255);
+                        DrawRectAlpha(sx - 1, sy - 1, glyphWidth + 2, glyphHeight + 2, _headR, _headG, _headB, glowAlpha);
+                    }
+                }
+                else
+                {
+                    var trailAlpha = (byte)Math.Clamp((int)(alpha * (_depth == MatrixDepth.Far ? 0.95 : 0.85)), 0, 255);
+                    DrawGlyphMaskAlpha(glyph, sx, sy, glyphWidth, glyphHeight, _glyphR, _glyphG, _glyphB, trailAlpha, withShadow: true, shadowAlpha: (byte)(trailAlpha / 4));
+                }
+            }
+        }
+
+        _framebuffer.Lock();
+        Marshal.Copy(_pixels, 0, _framebuffer.BackBuffer, _pixels.Length);
+        _framebuffer.AddDirtyRect(new Int32Rect(0, 0, _bufferWidth, _bufferHeight));
+        _framebuffer.Unlock();
+    }
+
+    private void DrawGlyphMaskAlpha(char glyph, int x, int y, int w, int h, byte r, byte g, byte b, byte a, bool withShadow, byte shadowAlpha)
+    {
+        if (w <= 0 || h <= 0 || a == 0)
+            return;
+
+        var mask = GetGlyphMask(glyph, w, h);
+        var x0 = Math.Max(0, x);
+        var y0 = Math.Max(0, y);
+        var x1 = Math.Min(_bufferWidth, x + w);
+        var y1 = Math.Min(_bufferHeight, y + h);
+        if (x0 >= x1 || y0 >= y1)
+            return;
+
+        if (withShadow && shadowAlpha > 0)
+        {
+            DrawGlyphMaskPass(mask, x - 1, y + 1, w, h, _shadowR, _shadowG, _shadowB, shadowAlpha, 0.92);
+            DrawGlyphMaskPass(mask, x + 1, y + 1, w, h, _shadowR, _shadowG, _shadowB, (byte)(shadowAlpha / 2), 0.75);
+        }
+
+        DrawGlyphMaskPass(mask, x, y, w, h, r, g, b, a, 1.0);
+    }
+
+    private void DrawGlyphMaskPass(byte[] mask, int x, int y, int w, int h, byte r, byte g, byte b, byte a, double intensity)
+    {
+        if (w <= 0 || h <= 0 || a == 0)
+            return;
+
+        var x0 = Math.Max(0, x);
+        var y0 = Math.Max(0, y);
+        var x1 = Math.Min(_bufferWidth, x + w);
+        var y1 = Math.Min(_bufferHeight, y + h);
+        if (x0 >= x1 || y0 >= y1)
+            return;
+
+        for (var yy = y0; yy < y1; yy++)
+        {
+            var my = yy - y;
+            var row = yy * _bufferWidth;
+            var maskRow = my * w;
+            for (var xx = x0; xx < x1; xx++)
+            {
+                var mx = xx - x;
+                var shape = mask[maskRow + mx];
+                if (shape == 0)
+                    continue;
+
+                var effectiveAlpha = (byte)Math.Clamp((int)((a * shape * intensity) / 255.0), 0, 255);
+                if (effectiveAlpha == 0)
+                    continue;
+
+                var idx = row + xx;
+                var dst = (uint)_pixels[idx];
+                var db = (byte)(dst & 0xFF);
+                var dg = (byte)((dst >> 8) & 0xFF);
+                var dr = (byte)((dst >> 16) & 0xFF);
+                var inv = 255 - effectiveAlpha;
+                var nb = (byte)((b * effectiveAlpha + db * inv) / 255);
+                var ng = (byte)((g * effectiveAlpha + dg * inv) / 255);
+                var nr = (byte)((r * effectiveAlpha + dr * inv) / 255);
+                _pixels[idx] = unchecked((int)(0xFF000000u | (uint)(nr << 16) | (uint)(ng << 8) | nb));
+            }
+        }
+    }
+    private byte[] GetGlyphMask(char glyph, int w, int h)
+    {
+        var key = ((long)glyph << 32) | ((long)(ushort)w << 16) | (ushort)h;
+        if (_glyphMaskCache.TryGetValue(key, out var mask))
+            return mask;
+
+        mask = BuildGlyphMask(glyph, w, h);
+        _glyphMaskCache[key] = mask;
+        return mask;
+    }
+
+    private byte[] BuildGlyphMask(char glyph, int w, int h)
+    {
+        if (w <= 0 || h <= 0)
+            return Array.Empty<byte>();
+
+        var typeface = new Typeface(
+            new System.Windows.Media.FontFamily(ResolveGlyphFontFamily()),
+            FontStyles.Normal,
+            FontWeights.Bold,
+            FontStretches.Normal);
+
+        var formatted = new FormattedText(
+            glyph.ToString(),
+            CultureInfo.InvariantCulture,
+            System.Windows.FlowDirection.LeftToRight,
+            typeface,
+            Math.Max(8.0, h * 0.92),
+            System.Windows.Media.Brushes.White,
+            1.0);
+
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            var x = (w - formatted.WidthIncludingTrailingWhitespace) / 2.0;
+            var y = (h - formatted.Height) / 2.0;
+            dc.DrawText(formatted, new System.Windows.Point(x, y));
+        }
+
+        var bitmap = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+
+        var pixels = new byte[w * h * 4];
+        bitmap.CopyPixels(pixels, w * 4, 0);
+
+        var mask = new byte[w * h];
+        var nonZero = false;
+        for (var i = 0; i < mask.Length; i++)
+        {
+            var alpha = pixels[i * 4 + 3];
+            mask[i] = alpha;
+            if (alpha > 0)
+                nonZero = true;
+        }
+
+        return nonZero ? mask : BuildFallbackMask(glyph, w, h);
+    }
+
+    private string ResolveGlyphFontFamily()
+    {
+        var alphabet = _options.Matrix.Alphabet?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (alphabet == "katakana")
+            return "Yu Gothic UI";
+
+        if (alphabet == "runes" || alphabet == "demon")
+            return "Segoe UI Symbol";
+
+        return string.IsNullOrWhiteSpace(_options.Matrix.FontFamily)
+            ? "Consolas"
+            : _options.Matrix.FontFamily;
+    }
+
+    private static byte[] BuildFallbackMask(char glyph, int w, int h)
+    {
+        const int srcW = 5;
+        const int srcH = 7;
+        var src = new bool[srcW * srcH];
+        for (var yy = 0; yy < srcH; yy++)
+            src[yy * srcW + 2] = true;
+
+        var seed = glyph * 1103515245 + 12345;
+        for (var i = 0; i < src.Length; i++)
+        {
+            seed = unchecked(seed * 1664525 + 1013904223);
+            var bit = (seed >> 28) & 1;
+            if (bit == 1)
+                src[i] = true;
+        }
+
+        src[glyph % srcW] = true;
+        src[(srcH - 1) * srcW + ((glyph / 3) % srcW)] = true;
+
+        var dst = new byte[w * h];
+        for (var y = 0; y < h; y++)
+        {
+            var sy = Math.Clamp((int)(y * (srcH / (double)h)), 0, srcH - 1);
+            var row = y * w;
+            for (var x = 0; x < w; x++)
+            {
+                var sx = Math.Clamp((int)(x * (srcW / (double)w)), 0, srcW - 1);
+                dst[row + x] = src[sy * srcW + sx] ? (byte)255 : (byte)0;
+            }
+        }
+
+        return dst;
+    }
+
+    private void DrawRectAlpha(int x, int y, int w, int h, byte r, byte g, byte b, byte a)
+    {
+        if (w <= 0 || h <= 0 || a == 0)
+            return;
+
+        var x0 = Math.Max(0, x);
+        var y0 = Math.Max(0, y);
+        var x1 = Math.Min(_bufferWidth, x + w);
+        var y1 = Math.Min(_bufferHeight, y + h);
+        if (x0 >= x1 || y0 >= y1)
+            return;
+
+        for (var yy = y0; yy < y1; yy++)
+        {
+            var row = yy * _bufferWidth;
+            for (var xx = x0; xx < x1; xx++)
+            {
+                var idx = row + xx;
+                var dst = (uint)_pixels[idx];
+                var db = (byte)(dst & 0xFF);
+                var dg = (byte)((dst >> 8) & 0xFF);
+                var dr = (byte)((dst >> 16) & 0xFF);
+                var inv = 255 - a;
+                var nb = (byte)((b * a + db * inv) / 255);
+                var ng = (byte)((g * a + dg * inv) / 255);
+                var nr = (byte)((r * a + dr * inv) / 255);
+                _pixels[idx] = unchecked((int)(0xFF000000u | (uint)(nr << 16) | (uint)(ng << 8) | nb));
+            }
+        }
+    }
+
+    private (int maxTailLength, int tailStride, bool disableGlow) GetRenderProfile()
+    {
+        var pixelArea = ActualWidth * ActualHeight;
+        var columnCount = _engine.Columns.Count;
+        if (pixelArea >= 7_000_000 || columnCount >= 180)
+            return (22, 2, IsSecondaryPerformanceProfile);
+        if (pixelArea >= 3_500_000 || columnCount >= 120)
+            return (26, 1, IsSecondaryPerformanceProfile);
+        if (pixelArea >= 2_200_000 || columnCount >= 90)
+            return (34, 1, false);
+        return (34, 1, false);
+    }
+}
 
 
 

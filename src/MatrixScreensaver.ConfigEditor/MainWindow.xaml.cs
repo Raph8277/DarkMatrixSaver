@@ -193,6 +193,7 @@ public partial class MainWindow : Window
             JsonBox.Text = JsonSerializer.Serialize(_options, _json);
             UpdateColorPreviews();
             UpdateBackgroundPreview();
+            UpdateGlyphPreview();
         }
         catch
         {
@@ -306,6 +307,38 @@ public partial class MainWindow : Window
         OnFormChanged();
     }
 
+    private void ApplyAlphabetPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button || button.Tag is not string preset)
+            return;
+
+        MatrixAlphabetBox.Text = preset;
+        if (!_updatingForm)
+            OnFormChanged();
+    }
+
+    private void UpdateGlyphPreview()
+    {
+        var alphabet = MatrixAlphabetBox.Text?.Trim() ?? string.Empty;
+        var key = alphabet.ToLowerInvariant();
+
+        var preview = key switch
+        {
+            "katakana" => "\u30AB \u30BF \u30AB \u30CA \u30DE \u30C8\n\u30EA \u30AF \u30B9 \u30CD \u30AA \u30F3",
+            "hex" => "A3 F9 7C 1E D4 8B\n0F 2A 9D C1 7B E0",
+            "runes" => "\u16A0 \u16A2 \u16A6 \u16A8 \u16B1 \u16B2\n\u16B7 \u16B9 \u16BA \u16BE \u16C1 \u16C7",
+            "demon" => "\u26E7 \u16B2 \u16C9 \u27C1 \u26E4 \u263D\n\u2620 \u269A \u2720 \u16A6 \u16DF \u16CB",
+            "binary" => "01001101 01000001\n01010100 01010010",
+            _ => "A B C D E F\n1 2 3 4 5 6"
+        };
+
+        // Use a symbol-capable font for rune/demon previews.
+        MatrixGlyphPreviewText.FontFamily = (key == "runes" || key == "demon")
+            ? new System.Windows.Media.FontFamily("Segoe UI Symbol")
+            : new System.Windows.Media.FontFamily("Consolas");
+
+        MatrixGlyphPreviewText.Text = preview;
+    }
     private void PickMatrixGlyphColor_Click(object sender, RoutedEventArgs e) => PickColorInto(MatrixGlyphColorBox);
     private void PickMatrixHeadColor_Click(object sender, RoutedEventArgs e) => PickColorInto(MatrixHeadColorBox);
     private void PickMatrixShadowColor_Click(object sender, RoutedEventArgs e) => PickColorInto(MatrixShadowColorBox);
@@ -368,6 +401,7 @@ public partial class MainWindow : Window
             JsonBox.Text = JsonSerializer.Serialize(_options, _json);
             UpdateColorPreviews();
             UpdateBackgroundPreview();
+            UpdateGlyphPreview();
         }
         catch (Exception ex)
         {
@@ -426,6 +460,7 @@ public partial class MainWindow : Window
 
         UpdateColorPreviews();
         UpdateBackgroundPreview();
+            UpdateGlyphPreview();
         _updatingForm = false;
     }
 
@@ -536,6 +571,11 @@ public partial class MainWindow : Window
     {
         DepthRemoveLayerBtn.IsEnabled = DepthLayersListBox.SelectedItem != null;
     }}
+
+
+
+
+
 
 
 

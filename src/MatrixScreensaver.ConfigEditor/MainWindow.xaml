@@ -85,8 +85,7 @@
                                 <Border Grid.Row="6" Grid.Column="1" Height="130" Margin="6,2" BorderBrush="#555" BorderThickness="1" Background="#202020">
                                     <Grid>
                                         <Image x:Name="BackgroundPreviewImage" Stretch="UniformToFill" />
-                                        <TextBlock x:Name="BackgroundPreviewFallback" Text="Aucune image" Foreground="#B0B0B0"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="BackgroundPreviewFallback" Text="Aucune image" Foreground="#B0B0B0" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Grid>
                                 </Border>
                             </Grid>
@@ -95,6 +94,8 @@
                         <GroupBox Header="Matrix" Margin="0,0,0,10">
                             <Grid Margin="8">
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -153,6 +154,20 @@
 
                                 <TextBlock Grid.Row="9" Text="Alphabet" VerticalAlignment="Center" />
                                 <TextBox x:Name="MatrixAlphabetBox" Grid.Row="9" Grid.Column="1" Margin="6,2" Grid.ColumnSpan="2" />
+
+                                <TextBlock Grid.Row="10" Text="Preset glyphes" VerticalAlignment="Top" />
+                                <WrapPanel Grid.Row="10" Grid.Column="1" Grid.ColumnSpan="2" Margin="6,2">
+                                    <Button Content="Katakana" Tag="Katakana" Click="ApplyAlphabetPreset_Click" Padding="8,4" Margin="0,0,6,6" />
+                                    <Button Content="Hex" Tag="Hex" Click="ApplyAlphabetPreset_Click" Padding="8,4" Margin="0,0,6,6" />
+                                    <Button Content="Runes" Tag="Runes" Click="ApplyAlphabetPreset_Click" Padding="8,4" Margin="0,0,6,6" />
+                                    <Button Content="Demon" Tag="Demon" Click="ApplyAlphabetPreset_Click" Padding="8,4" Margin="0,0,6,6" />
+                                    <Button Content="Binary" Tag="Binary" Click="ApplyAlphabetPreset_Click" Padding="8,4" Margin="0,0,6,6" />
+                                </WrapPanel>
+
+                                <TextBlock Grid.Row="11" Text="Apercu glyphes" VerticalAlignment="Top" />
+                                <Border Grid.Row="11" Grid.Column="1" Grid.ColumnSpan="2" Margin="6,2" Padding="8" BorderBrush="#555" BorderThickness="1" Background="#101010">
+                                    <TextBlock x:Name="MatrixGlyphPreviewText" FontFamily="Consolas" FontSize="14" Foreground="#8BFFB7" TextWrapping="Wrap" />
+                                </Border>
                             </Grid>
                         </GroupBox>
 
@@ -195,13 +210,11 @@
 
                         <GroupBox Header="Depth Layers (Profondeur)" Margin="0,0,0,10">
                             <StackPanel Margin="8">
-                                <!-- Boutons d'ajout/suppression -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                     <Button x:Name="DepthAddLayerBtn" Content="Ajouter couche" Click="DepthAddLayer_Click" Padding="10,4" Margin="0,0,8,0" />
                                     <Button x:Name="DepthRemoveLayerBtn" Content="Supprimer (sel)" Click="DepthRemoveLayer_Click" Padding="10,4" IsEnabled="False" />
                                 </StackPanel>
 
-                                <!-- ListBox des couches -->
                                 <ListBox x:Name="DepthLayersListBox" SelectionChanged="DepthLayersListBox_SelectionChanged" Height="280" Background="#0D0D0D" BorderBrush="#3A3A3A" Foreground="#D8D8D8">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
@@ -219,22 +232,18 @@
                                                         <ColumnDefinition Width="60" />
                                                     </Grid.ColumnDefinitions>
 
-                                                    <!-- Depth -->
                                                     <TextBlock Grid.Row="0" Text="Depth:" Foreground="#A0A0A0" FontSize="11" />
                                                     <Slider Grid.Row="0" Grid.Column="1" x:Name="DepthSlider" Minimum="0" Maximum="1" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="6,0,6,0" PreviewMouseLeftButtonUp="DepthLayer_Changed" />
                                                     <TextBox Grid.Row="0" Grid.Column="2" x:Name="DepthValue" Text="{Binding Depth, StringFormat=F2}" Margin="6,0" />
 
-                                                    <!-- Opacity -->
                                                     <TextBlock Grid.Row="1" Text="Opacity:" Foreground="#A0A0A0" FontSize="11" />
                                                     <Slider Grid.Row="1" Grid.Column="1" x:Name="OpacitySlider" Minimum="0" Maximum="1" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="6,0,6,0" PreviewMouseLeftButtonUp="DepthLayer_Changed" />
                                                     <TextBox Grid.Row="1" Grid.Column="2" x:Name="OpacityValue" Text="{Binding Opacity, StringFormat=F2}" Margin="6,0" />
 
-                                                    <!-- SpeedMultiplier -->
                                                     <TextBlock Grid.Row="2" Text="Speed x:" Foreground="#A0A0A0" FontSize="11" />
                                                     <Slider Grid.Row="2" Grid.Column="1" x:Name="SpeedSlider" Minimum="0.1" Maximum="2.0" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="6,0,6,0" PreviewMouseLeftButtonUp="DepthLayer_Changed" />
                                                     <TextBox Grid.Row="2" Grid.Column="2" x:Name="SpeedValue" Text="{Binding SpeedMultiplier, StringFormat=F2}" Margin="6,0" />
 
-                                                    <!-- DensityMultiplier -->
                                                     <TextBlock Grid.Row="3" Text="Density x:" Foreground="#A0A0A0" FontSize="11" />
                                                     <Slider Grid.Row="3" Grid.Column="1" x:Name="DensitySlider" Minimum="0.1" Maximum="2.0" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="6,0,6,0" PreviewMouseLeftButtonUp="DepthLayer_Changed" />
                                                     <TextBox Grid.Row="3" Grid.Column="2" x:Name="DensityValue" Text="{Binding DensityMultiplier, StringFormat=F2}" Margin="6,0" />
@@ -259,5 +268,3 @@
         </StackPanel>
     </Grid>
 </Window>
-
-
